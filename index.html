@@ -2,12 +2,13 @@
 <html lang="pt-BR">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Solicitações de Resmas</title>
     <script src="https://alcdn.msauth.net/lib/1.4.4/js/msal.min.js"></script>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "Helvetica Neue", sans-serif;
         background: #fff;
         display: flex;
         flex-direction: column;
@@ -32,7 +33,8 @@
         margin-bottom: 6px;
         font-weight: 600;
       }
-      input, select {
+      input,
+      select {
         width: 100%;
         padding: 10px;
         margin-bottom: 18px;
@@ -57,7 +59,6 @@
       #status {
         margin-top: 20px;
         font-weight: 600;
-        color: green;
         text-align: center;
       }
     </style>
@@ -67,10 +68,10 @@
     <button onclick="signIn()" id="loginBtn">Entrar com Microsoft</button>
     <form id="resmaForm" style="display:none">
       <label for="Solicitante">Solicitante</label>
-      <input type="text" id="Solicitante" name="Solicitante" required />
+      <input type="text" id="Solicitante" name="Solicitante" readonly required />
 
       <label for="Quantidade">Quantidade</label>
-      <input type="number" id="Quantidade" name="Quantidade" required />
+      <input type="number" id="Quantidade" name="Quantidade" min="1" required />
 
       <label for="Setor">Setor</label>
       <input type="text" id="Setor" name="Setor" required />
@@ -83,58 +84,91 @@
     </form>
 
     <script>
+      // Configurações MSAL
       const msalConfig = {
         auth: {
           clientId: "d5135213-4cea-4721-b52f-e46ead089167",
-          authority: "https://login.microsoftonline.com/62345b7a-94ed-4671-b8f2-624e28c8253a",
-          redirectUri: window.location.href
-        }
+          authority:
+            "https://login.microsoftonline.com/62345b7a-94ed-4671-b8f2-624e28c8253a",
+          redirectUri: window.location.href,
+        },
       };
+
+      const loginScopes = ["User.Read"];
+      const graphScopes = ["Sites.ReadWrite.All"];
 
       const msalInstance = new msal.PublicClientApplication(msalConfig);
 
       async function signIn() {
         try {
-          const loginResponse = await msalInstance.loginPopup({ scopes: ["User.Read"] });
+          const loginResponse = await msalInstance.loginPopup({
+            scopes: loginScopes,
+          });
           document.getElementById("loginBtn").style.display = "none";
           document.getElementById("resmaForm").style.display = "block";
-          document.getElementById("Solicitante").value = loginResponse.account.name;
+          document.getElementById("Solicitante").value =
+            loginResponse.account.name || "";
         } catch (error) {
           alert("Erro no login: " + error);
         }
       }
 
-      document.getElementById("resmaForm").addEventListener("submit", async (e) => {
-        e.preventDefault();
+      document
+        .getElementById("resmaForm")
+        .addEventListener("submit", async (e) => {
+          e.preventDefault();
 
-        const item = {
-          Title: "Solicitação de Resma",
-          Solicitante: document.getElementById("Solicitante").value,
-          Quantidade: document.getElementById("Quantidade").value,
-          Setor: document.getElementById("Setor").value,
-          DataSolicitacao: document.getElementById("DataSolicitacao").value
-        };
+          document.getElementById("status").style.color = "black";
+          document.getElementById("status").innerText = "Enviando...";
 
-        const accessToken = await msalInstance.acquireTokenSilent({ scopes: ["https://graph.microsoft.com/.default"] }).catch(() => {
-          return msalInstance.acquireTokenPopup({ scopes: ["https://graph.microsoft.com/.default"] });
+          const item = {
+            Title: "Solicitação de Resma",
+            Solicitante: document.getElementById("Solicitante").value,
+            Quantidade: parseInt(document.getElementById("Quantidade").value, 10),
+            Setor: document.getElementById("Setor").value,
+            DataSolicitacao: document.getElementById("DataSolicitacao").value,
+          };
+
+          try {
+            const accessToken = await msalInstance
+              .acquireTokenSilent({ scopes: graphScopes })
+              .catch(() => {
+                return msalInstance.acquireTokenPopup({ scopes: graphScopes });
+              });
+
+            // Ajuste aqui a URL com seu site e lista SharePoint
+            const endpoint =
+              "https://graph.microsoft.com/v1.0/sites/gsilvainfo.sharepoint.com:/sites/Ope:/lists/SolicitacoesResmas/items";
+
+            const response = await fetch(endpoint, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${accessToken.accessToken}`,
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ fields: item }),
+            });
+
+            if (response.ok) {
+              document.getElementById("status").style.color = "green";
+              document.getElementById("status").innerText =
+                "Solicitação enviada com sucesso!";
+              document.getElementById("resmaForm").reset();
+              // Reinsere o nome do usuário após reset
+              document.getElementById("Solicitante").value =
+                msalInstance.getAllAccounts()[0].name || "";
+            } else {
+              const errorData = await response.json();
+              document.getElementById("status").style.color = "red";
+              document.getElementById("status").innerText =
+                "Erro ao enviar: " +
+                (errorData.error?.message || response.statusText);
+            }
+          } catch (err) {
+            document.getElementById("status").style.color = "red";
+            document.getElementById("status").innerText = "Erro: " + err.message;
+          }
         });
-
-        const response = await fetch("https://graph.microsoft.com/v1.0/sites/gsilvainfo.sharepoint.com:/sites/Ope:/lists/SolicitacoesResmas/items", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${accessToken.accessToken}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ fields: item })
-        });
-
-        if (response.ok) {
-          document.getElementById("status").innerText = "Solicitação enviada com sucesso!";
-          document.getElementById("resmaForm").reset();
-        } else {
-          document.getElementById("status").innerText = "Erro ao enviar: " + response.statusText;
-        }
-      });
     </script>
   </body>
 </html>
