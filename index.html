@@ -153,7 +153,12 @@
             Solicitante: document.getElementById("Solicitante").value,
             Quantidade: parseInt(document.getElementById("Quantidade").value, 10),
             Setor: document.getElementById("Setor").value,
-            DataSolicitacao: document.getElementById("DataSolicitacao").value,
+            const dataInput = document.getElementById("DataSolicitacao").value; // ex: "2025-05-29"
+const dataISO = dataInput + "T00:00:00Z"; // adiciona hora e fuso
+
+// depois no item:
+DataSolicitacao: dataISO,
+
           };
 
           try {
