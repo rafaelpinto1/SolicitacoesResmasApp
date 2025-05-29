@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Solicitações de Resmas</title>
+    <script src="https://alcdn.msauth.net/lib/1.4.4/js/msal.min.js"></script>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        background: #fff;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        padding: 30px;
+      }
+      h1 {
+        color: #c40000;
+        margin-bottom: 24px;
+      }
+      form {
+        width: 100%;
+        max-width: 400px;
+        background: #fff;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 600;
+      }
+      input, select {
+        width: 100%;
+        padding: 10px;
+        margin-bottom: 18px;
+        border: 1.5px solid #ccc;
+        border-radius: 8px;
+        font-size: 1rem;
+      }
+      button {
+        width: 100%;
+        padding: 14px;
+        background: #c40000;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        font-size: 1.1rem;
+        cursor: pointer;
+      }
+      button:hover {
+        background: #a00000;
+      }
+      #status {
+        margin-top: 20px;
+        font-weight: 600;
+        color: green;
+        text-align: center;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Solicitação de Resmas</h1>
+    <button onclick="signIn()" id="loginBtn">Entrar com Microsoft</button>
+    <form id="resmaForm" style="display:none">
+      <label for="Solicitante">Solicitante</label>
+      <input type="text" id="Solicitante" name="Solicitante" required />
+
+      <label for="Quantidade">Quantidade</label>
+      <input type="number" id="Quantidade" name="Quantidade" required />
+
+      <label for="Setor">Setor</label>
+      <input type="text" id="Setor" name="Setor" required />
+
+      <label for="DataSolicitacao">Data da Solicitação</label>
+      <input type="date" id="DataSolicitacao" name="DataSolicitacao" required />
+
+      <button type="submit">Enviar Solicitação</button>
+      <div id="status"></div>
+    </form>
+
+    <script>
+      const msalConfig = {
+        auth: {
+          clientId: "d5135213-4cea-4721-b52f-e46ead089167",
+          authority: "https://login.microsoftonline.com/62345b7a-94ed-4671-b8f2-624e28c8253a",
+          redirectUri: window.location.href
+        }
+      };
+
+      const msalInstance = new msal.PublicClientApplication(msalConfig);
+
+      async function signIn() {
+        try {
+          const loginResponse = await msalInstance.loginPopup({ scopes: ["User.Read"] });
+          document.getElementById("loginBtn").style.display = "none";
+          document.getElementById("resmaForm").style.display = "block";
+          document.getElementById("Solicitante").value = loginResponse.account.name;
+        } catch (error) {
+          alert("Erro no login: " + error);
+        }
+      }
+
+      document.getElementById("resmaForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const item = {
+          Title: "Solicitação de Resma",
+          Solicitante: document.getElementById("Solicitante").value,
+          Quantidade: document.getElementById("Quantidade").value,
+          Setor: document.getElementById("Setor").value,
+          DataSolicitacao: document.getElementById("DataSolicitacao").value
+        };
+
+        const accessToken = await msalInstance.acquireTokenSilent({ scopes: ["https://graph.microsoft.com/.default"] }).catch(() => {
+          return msalInstance.acquireTokenPopup({ scopes: ["https://graph.microsoft.com/.default"] });
+        });
+
+        const response = await fetch("https://graph.microsoft.com/v1.0/sites/gsilvainfo.sharepoint.com:/sites/Ope:/lists/SolicitacoesResmas/items", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${accessToken.accessToken}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ fields: item })
+        });
+
+        if (response.ok) {
+          document.getElementById("status").innerText = "Solicitação enviada com sucesso!";
+          document.getElementById("resmaForm").reset();
+        } else {
+          document.getElementById("status").innerText = "Erro ao enviar: " + response.statusText;
+        }
+      });
+    </script>
+  </body>
+</html>
